@@ -4,300 +4,183 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Mapa świata — kliknij kraj, aby przejść do strony</title>
-  <link rel="preconnect" href="https://unpkg.com">
   <style>
     :root {
-      --bg: #f6f7f9;
-      --text: #172b4d;
-      --muted: #6b7280;
-      --stroke: #9ca3af;
-      --highlight: #16a34a; /* zielony */
-      --card: #ffffff;
-      --focus: #2563eb;
+      --bg:#f6f7f9; --text:#172b4d; --muted:#6b7280; --stroke:#9ca3af;
+      --highlight:#16a34a; --card:#ffffff; --focus:#2563eb;
     }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; }
-    body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.45;
-    }
-    header {
-      padding: 24px clamp(16px, 4vw, 40px);
-      display: grid;
-      gap: 12px;
-      background: linear-gradient(180deg, #ffffff, #f7f8fb);
-      border-bottom: 1px solid #e5e7eb;
-    }
-    header h1 {
-      margin: 0;
-      font-size: clamp(20px, 3vw, 28px);
-      letter-spacing: .2px;
-    }
-    header p { margin: 0; color: var(--muted); }
-
-    .toolbar {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 6px;
-    }
-    .search {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      background: var(--card);
-      padding: 10px 12px;
-      border: 1px solid #e5e7eb;
-      border-radius: 12px;
-      box-shadow: 0 1px 0 rgba(0,0,0,.03);
-    }
-    .search input {
-      border: none;
-      outline: none;
-      font-size: 16px;
-      min-width: min(280px, 60vw);
-      background: transparent;
-    }
-    .search button {
-      border: 0;
-      padding: 10px 14px;
-      border-radius: 10px;
-      background: var(--focus);
-      color: #fff;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .search button:focus { outline: 3px solid #bfdbfe; outline-offset: 2px; }
-
-    .notice { color: var(--muted); font-size: 14px; }
-
-    main {
-      padding: 20px clamp(12px, 4vw, 40px) 40px;
-    }
-    .map-card {
-      background: var(--card);
-      border: 1px solid #e5e7eb;
-      border-radius: 16px;
-      padding: clamp(8px, 2vw, 16px);
-      box-shadow: 0 10px 30px rgba(0,0,0,.04);
-    }
-    #map {
-      width: 100%;
-      height: min(68vh, 760px);
-    }
-    svg { display: block; width: 100%; height: 100%; }
-    .country {
-      fill: #ffffff; /* cała mapa biała */
-      stroke: var(--stroke);
-      stroke-width: .6px;
-      vector-effect: non-scaling-stroke;
-      cursor: pointer;
-      transition: fill .15s ease, stroke .15s ease;
-    }
-    .country:hover { fill: #eef2ff; }
-    .highlighted { fill: var(--highlight) !important; stroke: #0f5132; }
-
-    .toast {
-      position: fixed;
-      bottom: 18px; left: 50%; transform: translateX(-50%);
-      background: #111827; color: #fff;
-      padding: 10px 14px; border-radius: 10px; font-size: 14px;
-      box-shadow: 0 6px 20px rgba(0,0,0,.25);
-      opacity: 0; pointer-events: none; transition: opacity .2s ease;
-    }
-    .toast.show { opacity: 1; }
-    a.inline { color: var(--focus); text-decoration: none; }
-    a.inline:hover { text-decoration: underline; }
+    body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text)}
+    header{padding:20px;background:#fff;border-bottom:1px solid #e5e7eb}
+    h1{margin:0 0 6px}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap}
+    .search{display:flex;gap:8px;align-items:center;background:var(--card);padding:8px 10px;border:1px solid #e5e7eb;border-radius:10px}
+    .search input{border:0;outline:0;background:transparent;font-size:16px;min-width:min(280px,60vw)}
+    .search button{border:0;padding:8px 12px;border-radius:8px;background:var(--focus);color:#fff;font-weight:600;cursor:pointer}
+    main{padding:16px}
+    .map-card{background:var(--card);border:1px solid #e5e7eb;border-radius:16px;padding:10px}
+    #map{width:100%;height:min(70vh,760px)}
+    svg{width:100%;height:100%;display:block}
+    .country{fill:#fff;stroke:var(--stroke);stroke-width:.6px;cursor:pointer;transition:fill .15s ease}
+    .country:hover{fill:#eef2ff}
+    .highlighted{fill:var(--highlight)!important;stroke:#0f5132}
+    .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);
+      background:#111827;color:#fff;padding:8px 12px;border-radius:8px;opacity:0;transition:opacity .2s}
+    .toast.show{opacity:1}
   </style>
 </head>
 <body>
-  <header>
-    <h1>Interaktywna mapa świata</h1>
-    <p>Kliknij kraj, aby przejść do jego strony. Wyszukaj kraj po nazwie — zostanie podświetlony na zielono.</p>
-    <div class="toolbar">
-      <form class="search" id="searchForm" autocomplete="off">
-        <input id="searchInput" type="text" placeholder="np. Polska / Poland / Niemcy / Japan…" aria-label="Wpisz nazwę kraju" />
-        <button type="submit">Szukaj</button>
-      </form>
-      <div class="notice">Wdrożone podstrony: <strong>Polska</strong>, <strong>Niemcy</strong>, <strong>Japonia</strong>, <strong>Brazylia</strong>, <strong>Australia</strong>.</div>
-    </div>
-  </header>
+<header>
+  <h1>Interaktywna mapa świata</h1>
+  <p>Kliknij kraj, aby przejść do jego strony. Wyszukaj kraj po nazwie — zostanie podświetlony na zielono.</p>
+  <div class="toolbar">
+    <form class="search" id="searchForm" autocomplete="off">
+      <input id="searchInput" type="text" placeholder="np. Polska" aria-label="Wpisz nazwę kraju" />
+      <button type="submit">Szukaj</button>
+    </form>
+</header>
 
-  <main>
-    <div class="map-card">
-      <div id="map" role="img" aria-label="Mapa świata, kliknij kraj aby przejść do podstrony"></div>
-    </div>
-  </main>
+<main>
+  <div class="map-card"><div id="map" role="img" aria-label="Mapa świata"></div></div>
+</main>
 
-  <div class="toast" id="toast">Strona tego kraju jest w przygotowaniu.</div>
+<div class="toast" id="toast">…</div>
 
-  <!-- D3 + TopoJSON z CDN -->
-  <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
-  <script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
-  <script>
-    (function () {
-      const implemented = {
-        "POL": "countries/polska.html",
-        "DEU": "countries/niemcy.html",
-        "JPN": "countries/japonia.html",
-        "BRA": "countries/brazylia.html",
-        "AUS": "countries/australia.html"
-      };
+<script src="https://unpkg.com/d3@7"></script>
+<script src="https://unpkg.com/topojson-client@3"></script>
+<script>
+(async function(){
+  /* ========== USTAWIENIA ========== */
+  // Podstrony: rozpoznawane po nazwie (PL i EN)
+  const implementedByName = new Map([
+    ["polska","countries/polska.html"], ["poland","countries/polska.html"],
+    ["niemcy","countries/niemcy.html"], ["germany","countries/niemcy.html"], ["deutschland","countries/niemcy.html"],
+    ["japonia","countries/japonia.html"], ["japan","countries/japonia.html"],
+    ["brazylia","countries/brazylia.html"], ["brazil","countries/brazylia.html"],
+    ["australia","countries/australia.html"], ["australia","countries/australia.html"],
+    ["afganistan","countries/afganistan.html"], ["afghanistan","countries/afganistan.html"]
+  ]);
 
-      // Nazwy PL/EN -> ISO3 (przydatne w wyszukiwarce)
-      const manualAliases = new Map([
-        ["polska", "POL"], ["poland", "POL"],
-        ["niemcy", "DEU"], ["germany", "DEU"], ["deutschland", "DEU"],
-        ["japonia", "JPN"], ["japan", "JPN"], ["nippon", "JPN"], ["nihon", "JPN"],
-        ["brazylia", "BRA"], ["brazil", "BRA"],
-        ["australia", "AUS"]
-      ]);
+  // Aliasowy słownik PL/EN → angielska nazwa z danych (wystarczający, żeby objąć popularne różnice nazw)
+  const aliasToEnglish = new Map([
+    // najczęstsze polskie endonimy/egzonimy
+    ["afganistan","afghanistan"], ["polska","poland"], ["niemcy","germany"], ["japonia","japan"], ["brazylia","brazill"],
+    ["australia","australia"]
+  ]);
 
-      const width = document.getElementById('map').clientWidth;
-      const height = document.getElementById('map').clientHeight;
+  /* ========== RYSOWANIE MAPY ========== */
+  const width = document.getElementById('map').clientWidth;
+  const height = document.getElementById('map').clientHeight;
+  const svg = d3.select("#map").append("svg").attr("viewBox",[0,0,width,height]);
+  const projection = d3.geoNaturalEarth1().fitExtent([[10,10],[width-10,height-10]], {type:"Sphere"});
+  const path = d3.geoPath(projection);
+  svg.append("path").datum({type:"Sphere"}).attr("d",path).attr("fill","#ffffff");
 
-      const svg = d3.select("#map").append("svg")
-        .attr("viewBox", [0, 0, width, height]);
+  const world = await fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(r=>r.json());
+  const countries = topojson.feature(world, world.objects.countries).features;
 
-      const projection = d3.geoNaturalEarth1()
-        .fitExtent([[10, 10], [width - 10, height - 10]], {type: "Sphere"});
-      const path = d3.geoPath(projection);
+  // Indeks nazw z danych (EN) -> feature
+  const nameToFeature = new Map();
+  countries.forEach(f => {
+    const name = (f.properties && f.properties.name) ? f.properties.name.trim() : "";
+    if (name) nameToFeature.set(normalize(name), f);
+  });
 
-      // Tło (ocean) – białe, żeby całość była biała
-      svg.append("path")
-        .datum({type: "Sphere"})
-        .attr("d", path)
-        .attr("fill", "#ffffff");
+  const g = svg.append("g");
+  const shapes = g.selectAll("path.country")
+    .data(countries)
+    .join("path")
+    .attr("class","country")
+    .attr("d", path)
+    .attr("data-name", d => d.properties.name)
+    .on("click", (e, d) => {
+      // przejście do podstrony — po nazwie (PL/EN)
+      const en = normalize(d.properties.name);
+      const url = implementedByName.get(en) || implementedByName.get(aliasReverse.get(en) || "");
+      if (url) window.location.href = url;
+      else showToast("Strona tego kraju jest w przygotowaniu.");
+    })
+    .append("title").text(d => d.properties.name);
 
-      // Ładowanie dokładnej siatki krajów
-      fetch("https://unpkg.com/world-atlas@2/countries-110m.json")
-        .then(r => r.json())
-        .then(world => {
-          const countries = topojson.feature(world, world.objects.countries).features;
-          const byId = new Map();
-          const iso3FromName = new Map();
+  /* ========== WYSZUKIWARKA ========== */
+  const searchForm = document.getElementById("searchForm");
+  const searchInput = document.getElementById("searchInput");
 
-          // Uwaga: w tym pliku brakuje nazw — pobierzemy je przez "country names" pomocniczo
-          // dołączamy drugi plik z nazwami i ISO3:
-          return Promise.all([
-            countries,
-            fetch("https://unpkg.com/world-atlas@2/country-names/en.json").then(r => r.json())
-          ]);
-        })
-        .then(([countries, nameTable]) => {
-          // Zbuduj mapy: id->name, id->iso3
-          const idToMeta = new Map(nameTable.map(d => [String(d.id), d]));
-          const iso3FromName = new Map();
-          const iso3FromId = new Map();
+  // Zbuduj odwrotny alias: EN -> PL alias (pomocniczo dla kliku)
+  const aliasReverse = new Map();
+  for (const [k,v] of aliasToEnglish.entries()){
+    aliasReverse.set(normalize(v), normalize(k));
+  }
 
-          countries.forEach(f => {
-            const meta = idToMeta.get(String(f.id));
-            const name = meta ? meta.name : "Unknown";
-            const iso3 = meta ? meta.iso3 : undefined;
+  function normalize(str){
+    return (str||"")
+      .toString()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g,"") // bez znaków diakrytycznych
+      .replace(/’/g,"'") // ujednolicenie apostrofów
+      .trim()
+      .toLowerCase();
+  }
+  function clearHighlight(){ svg.selectAll(".highlighted").classed("highlighted", false); }
+  function highlightFeature(f){
+    if(!f) return false;
+    // zaznacz
+    svg.selectAll(".highlighted").classed("highlighted", false);
+    svg.selectAll(".country")
+      .filter(d => d === f)
+      .classed("highlighted", true);
+    return true;
+  }
 
-            f.properties.name = name;
-            f.properties.iso3 = iso3;
+  function resolveToFeature(query){
+    const q = normalize(query);
+    if(!q) return null;
 
-            if (iso3) {
-              iso3FromId.set(iso3, f);
-              iso3FromName.set(name.toLowerCase(), iso3);
-            }
-          });
+    // 1) alias PL/EN -> EN
+    const enFromAlias = aliasToEnglish.get(q);
+    if (enFromAlias) {
+      const f = nameToFeature.get(normalize(enFromAlias));
+      if (f) return f;
+    }
 
-          // Render krajów
-          const g = svg.append("g");
-          g.selectAll("path.country")
-            .data(countries)
-            .join("path")
-            .attr("class", "country")
-            .attr("d", path)
-            .attr("data-name", d => d.properties.name || "")
-            .attr("data-iso3", d => d.properties.iso3 || "")
-            .on("click", (event, d) => {
-              const iso3 = d.properties.iso3;
-              if (iso3 && implemented[iso3]) {
-                window.location.href = implemented[iso3];
-              } else {
-                showToast("Strona tego kraju jest w przygotowaniu.");
-              }
-            })
-            .append("title")
-            .text(d => d.properties.name || "Kraj");
+    // 2) dokładna nazwa EN z danych
+    const exact = nameToFeature.get(q);
+    if (exact) return exact;
 
-          // Szukaj i podświetl
-          function clearHighlight() {
-            svg.selectAll(".highlighted").classed("highlighted", false);
-          }
-          function highlightISO3(iso3) {
-            clearHighlight();
-            if (!iso3) return false;
-            const match = svg.selectAll(".country").filter(function() {
-              return this.getAttribute("data-iso3") === iso3;
-            });
-            if (!match.size()) return false;
-            match.classed("highlighted", true);
-            // delikatne przesunięcie widoku (bez gwałtownego zoomu)
-            try {
-              const bounds = path.bounds(match.datum());
-              const [x0,y0] = bounds[0], [x1,y1] = bounds[1];
-              const cx = (x0 + x1)/2, cy = (y0 + y1)/2;
-              const dx = (x1 - x0), dy = (y1 - y0);
-              const k = Math.max(1, Math.min(5, 0.9 / Math.max(dx/width, dy/height)));
-              svg.transition().duration(500)
-                 .attr("viewBox", `${cx - width/(2*k)} ${cy - height/(2*k)} ${width/k} ${height/k}`);
-              setTimeout(() => {
-                svg.transition().duration(500).attr("viewBox", `0 0 ${width} ${height}`);
-              }, 1600);
-            } catch(e) {}
-            return true;
-          }
+    // 3) zaczyna się od…
+    let found = null;
+    for (const [name, f] of nameToFeature.entries()){
+      if (name.startsWith(q)) { found = f; break; }
+    }
+    if (found) return found;
 
-          const searchForm = document.getElementById("searchForm");
-          const searchInput = document.getElementById("searchInput");
+    // 4) zawiera…
+    for (const [name, f] of nameToFeature.entries()){
+      if (name.includes(q)) { found = f; break; }
+    }
+    return found;
+  }
 
-          searchForm.addEventListener("submit", (e) => {
-            e.preventDefault();
-            const qRaw = (searchInput.value || "").trim().toLowerCase();
-            if (!qRaw) { clearHighlight(); return; }
+  searchForm.addEventListener("submit", (e)=>{
+    e.preventDefault();
+    const q = searchInput.value || "";
+    const f = resolveToFeature(q);
+    if (highlightFeature(f)) {
+      // komunikat oraz podpowiedź, czy jest podstrona
+      const enName = normalize(f.properties.name);
+      const hasPage = implementedByName.has(enName) || implementedByName.has(aliasReverse.get(enName) || "");
+      showToast(hasPage ? "Kraj znaleziony. Kliknij, aby przejść do podstrony." : "Kraj znaleziony. Podstrona w przygotowaniu.");
+    } else {
+      showToast("Nie znaleziono takiego kraju.");
+    }
+  });
 
-            // 1) Spróbuj aliasów PL/EN
-            let iso3 = manualAliases.get(qRaw);
-
-            // 2) Spróbuj dokładnego dopasowania do nazw z pliku
-            if (!iso3) iso3 = iso3FromName.get(qRaw);
-
-            // 3) Spróbuj dopasowania "startsWith"
-            if (!iso3) {
-              const key = Array.from(iso3FromName.keys()).find(k => k.startsWith(qRaw));
-              if (key) iso3 = iso3FromName.get(key);
-            }
-
-            if (highlightISO3(iso3)) {
-              if (implemented[iso3]) {
-                showToast("Kraj znaleziony. Kliknij, aby przejść do podstrony.");
-              } else {
-                showToast("Kraj znaleziony. Podstrona w przygotowaniu.");
-              }
-            } else {
-              showToast("Nie znaleziono takiego kraju.");
-            }
-          });
-        })
-        .catch(err => {
-          console.error(err);
-          showToast("Błąd ładowania mapy. Sprawdź połączenie z internetem.");
-        });
-
-      function showToast(msg) {
-        const el = document.getElementById("toast");
-        el.textContent = msg;
-        el.classList.add("show");
-        clearTimeout(showToast._t);
-        showToast._t = setTimeout(() => el.classList.remove("show"), 1800);
-      }
-    })();
-  </script>
+  function showToast(msg){
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=>el.classList.remove("show"), 2000);
+  }
+})();
+</script>
 </body>
 </html>
