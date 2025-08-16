@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mapa świata — kliknij kraj, aby przejść do strony</title>
+  <link rel="preconnect" href="https://unpkg.com">
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --text: #172b4d;
+      --muted: #6b7280;
+      --stroke: #9ca3af;
+      --highlight: #16a34a; /* zielony */
+      --card: #ffffff;
+      --focus: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    header {
+      padding: 24px clamp(16px, 4vw, 40px);
+      display: grid;
+      gap: 12px;
+      background: linear-gradient(180deg, #ffffff, #f7f8fb);
+      border-bottom: 1px solid #e5e7eb;
+    }
+    header h1 {
+      margin: 0;
+      font-size: clamp(20px, 3vw, 28px);
+      letter-spacing: .2px;
+    }
+    header p { margin: 0; color: var(--muted); }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+    .search {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: var(--card);
+      padding: 10px 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      box-shadow: 0 1px 0 rgba(0,0,0,.03);
+    }
+    .search input {
+      border: none;
+      outline: none;
+      font-size: 16px;
+      min-width: min(280px, 60vw);
+      background: transparent;
+    }
+    .search button {
+      border: 0;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: var(--focus);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .search button:focus { outline: 3px solid #bfdbfe; outline-offset: 2px; }
+
+    .notice { color: var(--muted); font-size: 14px; }
+
+    main {
+      padding: 20px clamp(12px, 4vw, 40px) 40px;
+    }
+    .map-card {
+      background: var(--card);
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: clamp(8px, 2vw, 16px);
+      box-shadow: 0 10px 30px rgba(0,0,0,.04);
+    }
+    #map {
+      width: 100%;
+      height: min(68vh, 760px);
+    }
+    svg { display: block; width: 100%; height: 100%; }
+    .country {
+      fill: #ffffff; /* cała mapa biała */
+      stroke: var(--stroke);
+      stroke-width: .6px;
+      vector-effect: non-scaling-stroke;
+      cursor: pointer;
+      transition: fill .15s ease, stroke .15s ease;
+    }
+    .country:hover { fill: #eef2ff; }
+    .highlighted { fill: var(--highlight) !important; stroke: #0f5132; }
+
+    .toast {
+      position: fixed;
+      bottom: 18px; left: 50%; transform: translateX(-50%);
+      background: #111827; color: #fff;
+      padding: 10px 14px; border-radius: 10px; font-size: 14px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.25);
+      opacity: 0; pointer-events: none; transition: opacity .2s ease;
+    }
+    .toast.show { opacity: 1; }
+    a.inline { color: var(--focus); text-decoration: none; }
+    a.inline:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Interaktywna mapa świata</h1>
+    <p>Kliknij kraj, aby przejść do jego strony. Wyszukaj kraj po nazwie — zostanie podświetlony na zielono.</p>
+    <div class="toolbar">
+      <form class="search" id="searchForm" autocomplete="off">
+        <input id="searchInput" type="text" placeholder="np. Polska / Poland / Niemcy / Japan…" aria-label="Wpisz nazwę kraju" />
+        <button type="submit">Szukaj</button>
+      </form>
+      <div class="notice">Wdrożone podstrony: <strong>Polska</strong>, <strong>Niemcy</strong>, <strong>Japonia</strong>, <strong>Brazylia</strong>, <strong>Australia</strong>.</div>
+    </div>
+  </header>
+
+  <main>
+    <div class="map-card">
+      <div id="map" role="img" aria-label="Mapa świata, kliknij kraj aby przejść do podstrony"></div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast">Strona tego kraju jest w przygotowaniu.</div>
+
+  <!-- D3 + TopoJSON z CDN -->
+  <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+  <script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
+  <script>
+    (function () {
+      const implemented = {
+        "POL": "countries/polska.html",
+        "DEU": "countries/niemcy.html",
+        "JPN": "countries/japonia.html",
+        "BRA": "countries/brazylia.html",
+        "AUS": "countries/australia.html"
+      };
+
+      // Nazwy PL/EN -> ISO3 (przydatne w wyszukiwarce)
+      const manualAliases = new Map([
+        ["polska", "POL"], ["poland", "POL"],
+        ["niemcy", "DEU"], ["germany", "DEU"], ["deutschland", "DEU"],
+        ["japonia", "JPN"], ["japan", "JPN"], ["nippon", "JPN"], ["nihon", "JPN"],
+        ["brazylia", "BRA"], ["brazil", "BRA"],
+        ["australia", "AUS"]
+      ]);
+
+      const width = document.getElementById('map').clientWidth;
+      const height = document.getElementById('map').clientHeight;
+
+      const svg = d3.select("#map").append("svg")
+        .attr("viewBox", [0, 0, width, height]);
+
+      const projection = d3.geoNaturalEarth1()
+        .fitExtent([[10, 10], [width - 10, height - 10]], {type: "Sphere"});
+      const path = d3.geoPath(projection);
+
+      // Tło (ocean) – białe, żeby całość była biała
+      svg.append("path")
+        .datum({type: "Sphere"})
+        .attr("d", path)
+        .attr("fill", "#ffffff");
+
+      // Ładowanie dokładnej siatki krajów
+      fetch("https://unpkg.com/world-atlas@2/countries-110m.json")
+        .then(r => r.json())
+        .then(world => {
+          const countries = topojson.feature(world, world.objects.countries).features;
+          const byId = new Map();
+          const iso3FromName = new Map();
+
+          // Uwaga: w tym pliku brakuje nazw — pobierzemy je przez "country names" pomocniczo
+          // dołączamy drugi plik z nazwami i ISO3:
+          return Promise.all([
+            countries,
+            fetch("https://unpkg.com/world-atlas@2/country-names/en.json").then(r => r.json())
+          ]);
+        })
+        .then(([countries, nameTable]) => {
+          // Zbuduj mapy: id->name, id->iso3
+          const idToMeta = new Map(nameTable.map(d => [String(d.id), d]));
+          const iso3FromName = new Map();
+          const iso3FromId = new Map();
+
+          countries.forEach(f => {
+            const meta = idToMeta.get(String(f.id));
+            const name = meta ? meta.name : "Unknown";
+            const iso3 = meta ? meta.iso3 : undefined;
+
+            f.properties.name = name;
+            f.properties.iso3 = iso3;
+
+            if (iso3) {
+              iso3FromId.set(iso3, f);
+              iso3FromName.set(name.toLowerCase(), iso3);
+            }
+          });
+
+          // Render krajów
+          const g = svg.append("g");
+          g.selectAll("path.country")
+            .data(countries)
+            .join("path")
+            .attr("class", "country")
+            .attr("d", path)
+            .attr("data-name", d => d.properties.name || "")
+            .attr("data-iso3", d => d.properties.iso3 || "")
+            .on("click", (event, d) => {
+              const iso3 = d.properties.iso3;
+              if (iso3 && implemented[iso3]) {
+                window.location.href = implemented[iso3];
+              } else {
+                showToast("Strona tego kraju jest w przygotowaniu.");
+              }
+            })
+            .append("title")
+            .text(d => d.properties.name || "Kraj");
+
+          // Szukaj i podświetl
+          function clearHighlight() {
+            svg.selectAll(".highlighted").classed("highlighted", false);
+          }
+          function highlightISO3(iso3) {
+            clearHighlight();
+            if (!iso3) return false;
+            const match = svg.selectAll(".country").filter(function() {
+              return this.getAttribute("data-iso3") === iso3;
+            });
+            if (!match.size()) return false;
+            match.classed("highlighted", true);
+            // delikatne przesunięcie widoku (bez gwałtownego zoomu)
+            try {
+              const bounds = path.bounds(match.datum());
+              const [x0,y0] = bounds[0], [x1,y1] = bounds[1];
+              const cx = (x0 + x1)/2, cy = (y0 + y1)/2;
+              const dx = (x1 - x0), dy = (y1 - y0);
+              const k = Math.max(1, Math.min(5, 0.9 / Math.max(dx/width, dy/height)));
+              svg.transition().duration(500)
+                 .attr("viewBox", `${cx - width/(2*k)} ${cy - height/(2*k)} ${width/k} ${height/k}`);
+              setTimeout(() => {
+                svg.transition().duration(500).attr("viewBox", `0 0 ${width} ${height}`);
+              }, 1600);
+            } catch(e) {}
+            return true;
+          }
+
+          const searchForm = document.getElementById("searchForm");
+          const searchInput = document.getElementById("searchInput");
+
+          searchForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const qRaw = (searchInput.value || "").trim().toLowerCase();
+            if (!qRaw) { clearHighlight(); return; }
+
+            // 1) Spróbuj aliasów PL/EN
+            let iso3 = manualAliases.get(qRaw);
+
+            // 2) Spróbuj dokładnego dopasowania do nazw z pliku
+            if (!iso3) iso3 = iso3FromName.get(qRaw);
+
+            // 3) Spróbuj dopasowania "startsWith"
+            if (!iso3) {
+              const key = Array.from(iso3FromName.keys()).find(k => k.startsWith(qRaw));
+              if (key) iso3 = iso3FromName.get(key);
+            }
+
+            if (highlightISO3(iso3)) {
+              if (implemented[iso3]) {
+                showToast("Kraj znaleziony. Kliknij, aby przejść do podstrony.");
+              } else {
+                showToast("Kraj znaleziony. Podstrona w przygotowaniu.");
+              }
+            } else {
+              showToast("Nie znaleziono takiego kraju.");
+            }
+          });
+        })
+        .catch(err => {
+          console.error(err);
+          showToast("Błąd ładowania mapy. Sprawdź połączenie z internetem.");
+        });
+
+      function showToast(msg) {
+        const el = document.getElementById("toast");
+        el.textContent = msg;
+        el.classList.add("show");
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(() => el.classList.remove("show"), 1800);
+      }
+    })();
+  </script>
+</body>
+</html>
